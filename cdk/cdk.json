@@ -68,7 +68,7 @@
     ],
     "identityProviders": [],
     "userPoolDomainPrefix": "",
-    "allowedSignUpEmailDomains": [],
+    "allowedSignUpEmailDomains": ["tot@alexzhenwu.com"],
     "selfSignUpEnabled": true,
     "publishedApiAllowedIpV4AddressRanges": [
       "0.0.0.0/1",
