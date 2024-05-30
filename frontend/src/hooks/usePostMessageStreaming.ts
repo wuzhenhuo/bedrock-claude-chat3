@@ -2,6 +2,7 @@ import { Auth } from 'aws-amplify';
 import { PostMessageRequest } from '../@types/conversation';
 import { create } from 'zustand';
 import i18next from 'i18next';
+import { AgentThinkingEventKeys } from '../xstates/agentThinkProgress';
 
 const WS_ENDPOINT: string = import.meta.env.VITE_APP_WS_ENDPOINT;
 const CHUNK_SIZE = 32 * 1024; //32KB
@@ -11,10 +12,13 @@ const usePostMessageStreaming = create<{
     input: PostMessageRequest;
     hasKnowledge?: boolean;
     dispatch: (completion: string) => void;
+    thinkingDispatch: (
+      event: Exclude<AgentThinkingEventKeys, 'wakeup'>
+    ) => void;
   }) => Promise<string>;
 }>(() => {
   return {
-    post: async ({ input, dispatch, hasKnowledge }) => {
+    post: async ({ input, dispatch, hasKnowledge, thinkingDispatch }) => {
       if (hasKnowledge) {
         dispatch(i18next.t('bot.label.retrievingKnowledge'));
       } else {
@@ -92,6 +96,8 @@ const usePostMessageStreaming = create<{
                   break;
                 case 'THINKING':
                   completion += data.body;
+                  thinkingDispatch('thinking');
+                  // count up
                   // completion =
                   //   i18next.t('bot.label.agentThinking') + '\n\n' + data.body;
                   dispatch(completion);
@@ -109,8 +115,8 @@ const usePostMessageStreaming = create<{
                   }
                   break;
                 case 'STREAMING_END':
+                  thinkingDispatch('sleeping');
                   if (data.stop_reason) {
-                    // console.log('Stop reason:', data.stop_reason);
                   }
                   if (completion.endsWith(i18next.t('app.chatWaitingSymbol'))) {
                     completion = completion.slice(0, -1);

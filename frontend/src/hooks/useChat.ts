@@ -21,6 +21,8 @@ import { convertMessageMapToArray } from '../utils/MessageUtils';
 import { useTranslation } from 'react-i18next';
 import useModel from './useModel';
 import useFeedbackApi from './useFeedbackApi';
+import { useMachine } from '@xstate/react';
+import { agentThinkingState } from '../xstates/agentThinkProgress';
 
 type ChatStateType = {
   [id: string]: MessageMap;
@@ -29,7 +31,14 @@ type ChatStateType = {
 type BotInputType = {
   botId: string;
   hasKnowledge: boolean;
+  hasAgent: boolean;
 };
+
+export type ThinkingAction =
+  | {
+      type: 'doing';
+    }
+  | { type: 'init' };
 
 const NEW_MESSAGE_ID = {
   USER: 'new-message',
@@ -220,6 +229,8 @@ const useChatState = create<{
 
 const useChat = () => {
   const { t } = useTranslation();
+  const [agentThinking, send] = useMachine(agentThinkingState);
+
   const {
     chats,
     conversationId,
@@ -404,11 +415,16 @@ const useChat = () => {
     // post message
     const postPromise: Promise<string> = new Promise((resolve, reject) => {
       if (USE_STREAMING) {
+        if (bot?.hasAgent) send({ type: 'wakeup' });
+
         postStreaming({
           input,
           hasKnowledge: bot?.hasKnowledge,
           dispatch: (c: string) => {
             editMessage(conversationId, NEW_MESSAGE_ID.ASSISTANT, c);
+          },
+          thinkingDispatch: (event) => {
+            send({ type: event });
           },
         })
           .then((message) => {
@@ -540,10 +556,15 @@ const useChat = () => {
 
     setCurrentMessageId(NEW_MESSAGE_ID.ASSISTANT);
 
+    if (props?.bot?.hasAgent) send({ type: 'wakeup' });
+
     postStreaming({
       input,
       dispatch: (c: string) => {
         editMessage(conversationId, NEW_MESSAGE_ID.ASSISTANT, c);
+      },
+      thinkingDispatch: (event) => {
+        send({ type: event });
       },
     })
       .then(() => {
@@ -582,6 +603,7 @@ const useChat = () => {
   }, [messages]);
 
   return {
+    agentThinking,
     hasError,
     setConversationId,
     conversationId,
@@ -612,6 +634,7 @@ const useChat = () => {
             ? {
                 botId: params.bot.botId,
                 hasKnowledge: params.bot.hasKnowledge,
+                hasAgent: params.bot.hasAgent,
               }
             : undefined,
         });
